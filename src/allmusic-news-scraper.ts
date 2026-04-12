@@ -5,7 +5,7 @@ import { supabase } from './supabase';
 import * as cheerio from 'cheerio';
 
 const CONCURRENCY   = parseInt(process.env.CONCURRENCY   || '5');
-const PROFILE_LIMIT = parseInt(process.env.PROFILE_LIMIT || '100');
+const PROFILE_LIMIT = parseInt(process.env.PROFILE_LIMIT || '0'); // 0 = no limit
 const WORKFLOW_ID   = process.env.WORKFLOW_ID ? parseInt(process.env.WORKFLOW_ID) : null;
 
 const BASE_URL    = 'https://www.allmusic.com';
@@ -356,17 +356,20 @@ async function scrapeProfile(profile: SocialProfile): Promise<void> {
 async function scrapeNews(): Promise<void> {
     const startTime = Date.now();
     console.log('=== AllMusic News Scraper ===');
-    console.log(`Concurrency: ${CONCURRENCY} | Batch: ${PROFILE_LIMIT} profiles\n`);
+    console.log(`Concurrency: ${CONCURRENCY} | Batch: ${PROFILE_LIMIT > 0 ? PROFILE_LIMIT : 'all'} profiles\n`);
 
     await logWorkflowRun('running');
 
     // Fetch profiles that have an AllMusic URL, ordered by least-recently checked
-    const { data: profiles, error } = await supabase
+    let query = supabase
         .from('hb_socials')
         .select('id, identifier, social_url, linked_talent, checked_allmusic_news')
         .ilike('social_url', '%allmusic.com/artist/%')
-        .order('checked_allmusic_news', { ascending: true, nullsFirst: true })
-        .limit(PROFILE_LIMIT);
+        .order('checked_allmusic_news', { ascending: true, nullsFirst: true });
+
+    if (PROFILE_LIMIT > 0) query = query.limit(PROFILE_LIMIT);
+
+    const { data: profiles, error } = await query;
 
     if (error) {
         console.error('Error fetching profiles:', error);
