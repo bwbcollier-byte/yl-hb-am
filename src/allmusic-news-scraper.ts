@@ -84,7 +84,7 @@ function createLimiter(concurrency: number) {
 }
 
 // Polite fetch with a User-Agent and small delay
-async function fetchHtml(url: string): Promise<string | null> {
+async function fetchHtml(url: string, extraHeaders?: Record<string, string>): Promise<string | null> {
     await new Promise(r => setTimeout(r, FETCH_DELAY));
     try {
         const res = await fetch(url, {
@@ -92,6 +92,7 @@ async function fetchHtml(url: string): Promise<string | null> {
                 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 'Accept-Language': 'en-US,en;q=0.9',
+                ...extraHeaders,
             },
         });
         if (!res.ok) {
@@ -118,18 +119,30 @@ async function logWorkflowRun(status: string, durationSecs?: number, lastError?:
 }
 
 // ---------------------------------------------------------------------------
-// Step 1 — Fetch artist page, extract article stubs from #articlesTab
+// Step 1 — Fetch /articlesAjax endpoint, extract article stubs
+// ---------------------------------------------------------------------------
+// AllMusic dynamically loads the articles tab content via AJAX.
+// The endpoint returns a plain HTML fragment — no JS execution needed.
+// URL pattern: https://www.allmusic.com/artist/{mn}/articlesAjax
+// Response contains: <div id="relatedArticles"><div class="blogEntry"><a href="/blog/post/...">
 // ---------------------------------------------------------------------------
 
 async function fetchArticleStubs(mnId: string): Promise<ArticleStub[]> {
-    const html = await fetchHtml(`${BASE_URL}/artist/${mnId}`);
+    const artistUrl = `${BASE_URL}/artist/${mnId}`;
+    const ajaxUrl   = `${artistUrl}/articlesAjax`;
+
+    const html = await fetchHtml(ajaxUrl, {
+        'Referer': artistUrl,
+        'X-Requested-With': 'XMLHttpRequest',
+    });
     if (!html) return [];
 
     const $ = cheerio.load(html);
     const stubs: ArticleStub[] = [];
 
-    // Articles live inside #articlesTab — each is a bare <a> tag
-    $('#articlesTab a[href*="/blog/post/"]').each((_, el) => {
+    // Response fragment: #relatedArticles > .blogEntry > a
+    // Fallback: any /blog/post/ link in case markup changes
+    $('a[href*="/blog/post/"]').each((_, el) => {
         const href  = $(el).attr('href') || '';
         const title = $(el).text().trim();
         if (!title || !href) return;
@@ -242,39 +255,31 @@ async function scrapeProfile(profile: SocialProfile): Promise<void> {
             fullArticles.push(full);
         }
 
-        // Step 4: batch-resolve mn IDs found in article bodies → UUIDs
+        // Step 4: batch-resolve mn IDs found in article bodies → talent UUIDs
         const allMnIds = [...new Set(fullArticles.flatMap(a => a.mnIds))];
-        const { data: socialData } = allMnIds.length
-            ? await supabase.from('hb_socials')
-                .select('identifier, linked_talent')
-                .filter('social_url', 'ilike', `%allmusic.com/artist/${allMnIds[0]}%`) // handled below
-                .limit(1) // placeholder — real batch below
-            : { data: [] };
-
-        // Batch lookup: match mn IDs against social_url patterns
-        // AllMusic URLs end in /artist/{mn_id} — use ilike with each mn ID
         const mnToUuid: Record<string, string> = {};
+
         if (allMnIds.length > 0) {
-            // Query all at once using OR filter via RPC isn't available cleanly;
-            // use a contains match on the social_url column
-            const { data: matched } = await supabase
-                .from('hb_socials')
-                .select('social_url, linked_talent')
-                .not('linked_talent', 'is', null)
-                .in('social_url', allMnIds.map(id => `${BASE_URL}/artist/${id}`));
+            // Match by exact social_url ending in /artist/{mnId}
+            // and by identifier field containing the mn number
+            const [byUrl, byIdentifier] = await Promise.all([
+                supabase
+                    .from('hb_socials')
+                    .select('social_url, linked_talent')
+                    .not('linked_talent', 'is', null)
+                    .in('social_url', allMnIds.map(id => `${BASE_URL}/artist/${id}`)),
+                supabase
+                    .from('hb_socials')
+                    .select('identifier, linked_talent')
+                    .not('linked_talent', 'is', null)
+                    .in('identifier', allMnIds),
+            ]);
 
-            // Also try identifier field for direct matches
-            const { data: matched2 } = await supabase
-                .from('hb_socials')
-                .select('identifier, linked_talent')
-                .not('linked_talent', 'is', null);
-
-            for (const row of (matched || [])) {
+            for (const row of (byUrl.data || [])) {
                 const m = (row.social_url || '').match(/mn\d+/i);
                 if (m && row.linked_talent) mnToUuid[m[0].toLowerCase()] = row.linked_talent;
             }
-            // identifier-based fallback
-            for (const row of (matched2 || [])) {
+            for (const row of (byIdentifier.data || [])) {
                 const m = (row.identifier || '').match(/mn\d+/i);
                 if (m && row.linked_talent && !mnToUuid[m[0].toLowerCase()]) {
                     mnToUuid[m[0].toLowerCase()] = row.linked_talent;
