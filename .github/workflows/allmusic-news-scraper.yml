@@ -1,0 +1,72 @@
+name: AllMusic News Scraper
+
+on:
+  schedule:
+    # Run every 6 hours — lightweight (no browser), 100 profiles per run
+    - cron: "0 2,8,14,20 * * *"
+  workflow_dispatch:
+    inputs:
+      profile_limit:
+        description: "Max profiles to scrape (default: 100)"
+        required: false
+        default: "100"
+        type: string
+      concurrency:
+        description: "Parallel profiles (default: 5)"
+        required: false
+        default: "5"
+        type: string
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Notify Supabase — start
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          echo "START_TIME=$(date +%s)" >> $GITHUB_ENV
+          curl -s -X POST "$SUPABASE_URL/rest/v1/rpc/log_workflow_run" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"p_workflow_id": ${{ vars.WORKFLOW_ID_ALLMUSIC_NEWS_SCRAPER }}, "p_status": "running", "p_run_id": "${{ github.run_id }}"}'
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run AllMusic News Scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          PROFILE_LIMIT: ${{ github.event.inputs.profile_limit || '100' }}
+          CONCURRENCY: ${{ github.event.inputs.concurrency || '5' }}
+          WORKFLOW_ID: ${{ vars.WORKFLOW_ID_ALLMUSIC_NEWS_SCRAPER }}
+        run: npx ts-node --transpile-only src/allmusic-news-scraper.ts
+
+      - name: Notify Supabase — result
+        if: always()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          DURATION=$(( $(date +%s) - $START_TIME ))
+          STATUS="${{ job.status }}"
+          PAYLOAD=$(printf '{"p_workflow_id": ${{ vars.WORKFLOW_ID_ALLMUSIC_NEWS_SCRAPER }}, "p_status": "%s", "p_duration_secs": %s, "p_run_id": "${{ github.run_id }}"}' "$STATUS" "$DURATION")
+          curl -s -X POST "$SUPABASE_URL/rest/v1/rpc/log_workflow_run" \
+            -H "apikey: $SUPABASE_SERVICE_KEY" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"

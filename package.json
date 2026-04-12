@@ -1,0 +1,18 @@
+{
+  "name": "yl-hb-am",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "allmusic-news-scraper": "ts-node --transpile-only src/allmusic-news-scraper.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "cheerio": "^1.2.0",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}
