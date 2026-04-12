@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       profile_limit:
-        description: "Max profiles to scrape (default: 100)"
+        description: "Max profiles to scrape (0 = all)"
         required: false
-        default: "100"
+        default: "0"
         type: string
       concurrency:
         description: "Parallel profiles (default: 5)"
@@ -20,7 +20,7 @@ on:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 120
 
     steps:
       - name: Notify Supabase — start
@@ -51,7 +51,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          PROFILE_LIMIT: ${{ github.event.inputs.profile_limit || '100' }}
+          PROFILE_LIMIT: ${{ github.event.inputs.profile_limit || '0' }}
           CONCURRENCY: ${{ github.event.inputs.concurrency || '5' }}
           WORKFLOW_ID: ${{ vars.WORKFLOW_ID_ALLMUSIC_NEWS_SCRAPER }}
         run: npx ts-node --transpile-only src/allmusic-news-scraper.ts
