@@ -4,7 +4,7 @@ dotenv.config();
 import { supabase } from './supabase';
 import * as cheerio from 'cheerio';
 
-const MAX_PAGES  = parseInt(process.env.MAX_PAGES  || '1');  // blog listing pages to check
+const MAX_PAGES  = parseInt(process.env.MAX_PAGES  || '0');  // 0 = all pages
 const WORKFLOW_ID = process.env.WORKFLOW_ID ? parseInt(process.env.WORKFLOW_ID) : null;
 
 const BASE_URL   = 'https://www.allmusic.com';
@@ -200,13 +200,14 @@ async function resolveMnIdsToUuids(mnIds: string[]): Promise<Record<string, stri
 async function scrapeBlog(): Promise<void> {
     const startTime = Date.now();
     console.log('=== AllMusic Blog News Scraper ===');
-    console.log(`Checking ${MAX_PAGES} blog page(s)\n`);
+    console.log(`Checking ${MAX_PAGES === 0 ? 'all' : MAX_PAGES} blog page(s)\n`);
 
     await logWorkflowRun('running');
 
     // -- Collect article stubs from blog listing pages --
+    // MAX_PAGES=0 means paginate until there are no more articles
     const allStubs: BlogPostStub[] = [];
-    for (let page = 1; page <= MAX_PAGES; page++) {
+    for (let page = 1; MAX_PAGES === 0 || page <= MAX_PAGES; page++) {
         // AllMusic blog pagination uses ?page=N (1-indexed)
         const pageUrl = page === 1 ? BLOG_URL : `${BLOG_URL}?page=${page}`;
         console.log(`Fetching blog page ${page}: ${pageUrl}`);
