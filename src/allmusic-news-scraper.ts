@@ -360,24 +360,51 @@ async function scrapeNews(): Promise<void> {
 
     await logWorkflowRun('running');
 
-    // Fetch profiles that have an AllMusic URL, ordered by least-recently checked.
+    // Fetch profiles ordered by least-recently checked.
     // Filter by type IN ('allmusic', 'ALLMUSIC') so Postgres uses the btree index on `type`
     // (~36k rows) rather than doing a full 2.96M-row sequential scan via ILIKE on social_url.
-    let query = supabase
-        .from('hb_socials')
-        .select('id, identifier, social_url, linked_talent, checked_allmusic_news')
-        .in('type', ['allmusic', 'ALLMUSIC'])
-        .order('checked_allmusic_news', { ascending: true, nullsFirst: true });
+    // PostgREST caps each request at 1000 rows, so paginate when PROFILE_LIMIT=0 (all).
+    const BATCH_SIZE = 1000;
+    const profiles: SocialProfile[] = [];
 
-    query = query.limit(PROFILE_LIMIT > 0 ? PROFILE_LIMIT : 1000);
+    if (PROFILE_LIMIT > 0) {
+        const { data, error } = await supabase
+            .from('hb_socials')
+            .select('id, identifier, social_url, linked_talent, checked_allmusic_news')
+            .in('type', ['allmusic', 'ALLMUSIC'])
+            .order('checked_allmusic_news', { ascending: true, nullsFirst: true })
+            .limit(PROFILE_LIMIT);
 
-    const { data: profiles, error } = await query;
+        if (error) {
+            console.error('Error fetching profiles:', error);
+            await logWorkflowRun('failure', 0, error.message);
+            return;
+        }
+        profiles.push(...(data as SocialProfile[]));
+    } else {
+        // Paginate through all profiles
+        let page = 0;
+        while (true) {
+            const { data, error } = await supabase
+                .from('hb_socials')
+                .select('id, identifier, social_url, linked_talent, checked_allmusic_news')
+                .in('type', ['allmusic', 'ALLMUSIC'])
+                .order('checked_allmusic_news', { ascending: true, nullsFirst: true })
+                .range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1);
 
-    if (error) {
-        console.error('Error fetching profiles:', error);
-        await logWorkflowRun('failure', 0, error.message);
-        return;
+            if (error) {
+                console.error(`Error fetching profiles (page ${page}):`, error);
+                await logWorkflowRun('failure', 0, error.message);
+                return;
+            }
+            if (!data || data.length === 0) break;
+            profiles.push(...(data as SocialProfile[]));
+            console.log(`  Fetched page ${page + 1}: ${data.length} profiles (running total: ${profiles.length})`);
+            if (data.length < BATCH_SIZE) break; // last page
+            page++;
+        }
     }
+
     console.log(`Fetched ${profiles.length} AllMusic profiles.\n`);
 
     const limit = createLimiter(CONCURRENCY);
