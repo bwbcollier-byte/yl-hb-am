@@ -360,14 +360,16 @@ async function scrapeNews(): Promise<void> {
 
     await logWorkflowRun('running');
 
-    // Fetch profiles that have an AllMusic URL, ordered by least-recently checked
+    // Fetch profiles that have an AllMusic URL, ordered by least-recently checked.
+    // Filter by type IN ('allmusic', 'ALLMUSIC') so Postgres uses the btree index on `type`
+    // (~36k rows) rather than doing a full 2.96M-row sequential scan via ILIKE on social_url.
     let query = supabase
         .from('hb_socials')
         .select('id, identifier, social_url, linked_talent, checked_allmusic_news')
-        .ilike('social_url', '%allmusic.com/artist/%')
+        .in('type', ['allmusic', 'ALLMUSIC'])
         .order('checked_allmusic_news', { ascending: true, nullsFirst: true });
 
-    query = query.limit(PROFILE_LIMIT > 0 ? PROFILE_LIMIT : 1000); // Supabase times out without explicit limit on large tables
+    query = query.limit(PROFILE_LIMIT > 0 ? PROFILE_LIMIT : 1000);
 
     const { data: profiles, error } = await query;
 
