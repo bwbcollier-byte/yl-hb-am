@@ -367,7 +367,7 @@ async function scrapeNews(): Promise<void> {
         .ilike('social_url', '%allmusic.com/artist/%')
         .order('checked_allmusic_news', { ascending: true, nullsFirst: true });
 
-    if (PROFILE_LIMIT > 0) query = query.limit(PROFILE_LIMIT);
+    query = query.limit(PROFILE_LIMIT > 0 ? PROFILE_LIMIT : 1000); // Supabase times out without explicit limit on large tables
 
     const { data: profiles, error } = await query;
 
