@@ -5,7 +5,7 @@ import { supabase } from './supabase';
 import * as cheerio from 'cheerio';
 
 const CONCURRENCY   = parseInt(process.env.CONCURRENCY   || '5');
-const PROFILE_LIMIT = parseInt(process.env.PROFILE_LIMIT || '500'); // hard cap per run; 0 = unlimited
+const PROFILE_LIMIT = parseInt(process.env.PROFILE_LIMIT || '0'); // 0 = all profiles
 const WORKFLOW_ID   = process.env.WORKFLOW_ID ? parseInt(process.env.WORKFLOW_ID) : null;
 
 const BASE_URL    = 'https://www.allmusic.com';
