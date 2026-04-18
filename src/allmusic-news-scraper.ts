@@ -11,6 +11,18 @@ const WORKFLOW_ID   = process.env.WORKFLOW_ID ? parseInt(process.env.WORKFLOW_ID
 const BASE_URL    = 'https://www.allmusic.com';
 const FETCH_DELAY = 300; // ms between requests per worker — polite crawling
 
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+async function withRetry<T>(fn: () => Promise<{ data: T; error: any }>, attempts = 3, delayMs = 3000): Promise<{ data: T; error: any }> {
+    let last: { data: T; error: any } = { data: null as any, error: null };
+    for (let i = 1; i <= attempts; i++) {
+        if (i > 1) await sleep(delayMs);
+        last = await fn();
+        if (!last.error) return last;
+        console.warn(`   ⚠️  Supabase attempt ${i}/${attempts} failed: ${last.error.message}`);
+    }
+    return last;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -368,12 +380,12 @@ async function scrapeNews(): Promise<void> {
     const profiles: SocialProfile[] = [];
 
     if (PROFILE_LIMIT > 0) {
-        const { data, error } = await supabase
+        const { data, error } = await withRetry(() => supabase
             .from('hb_socials')
             .select('id, identifier, social_url, linked_talent, checked_allmusic_news')
             .in('type', ['allmusic', 'ALLMUSIC'])
             .order('checked_allmusic_news', { ascending: true, nullsFirst: true })
-            .limit(PROFILE_LIMIT);
+            .limit(PROFILE_LIMIT));
 
         if (error) {
             console.error('Error fetching profiles:', error);
@@ -385,12 +397,12 @@ async function scrapeNews(): Promise<void> {
         // Paginate through all profiles
         let page = 0;
         while (true) {
-            const { data, error } = await supabase
+            const { data, error } = await withRetry(() => supabase
                 .from('hb_socials')
                 .select('id, identifier, social_url, linked_talent, checked_allmusic_news')
                 .in('type', ['allmusic', 'ALLMUSIC'])
                 .order('checked_allmusic_news', { ascending: true, nullsFirst: true })
-                .range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1);
+                .range(page * BATCH_SIZE, (page + 1) * BATCH_SIZE - 1));
 
             if (error) {
                 console.error(`Error fetching profiles (page ${page}):`, error);
