@@ -4,7 +4,10 @@ dotenv.config();
 import { supabase } from './supabase';
 import * as cheerio from 'cheerio';
 
-const MAX_PAGES  = parseInt(process.env.MAX_PAGES  || '0');  // 0 = all pages
+// 0 historically meant "all pages" (no limit) — guard against that causing a
+// runaway job: if the env var is missing or explicitly 0, cap at 20 pages.
+const _MAX_PAGES_RAW = parseInt(process.env.MAX_PAGES || '0');
+const MAX_PAGES = _MAX_PAGES_RAW > 0 ? _MAX_PAGES_RAW : 20;
 const WORKFLOW_ID = process.env.WORKFLOW_ID ? parseInt(process.env.WORKFLOW_ID) : null;
 
 const BASE_URL   = 'https://www.allmusic.com';
@@ -200,7 +203,7 @@ async function resolveMnIdsToUuids(mnIds: string[]): Promise<Record<string, stri
 async function scrapeBlog(): Promise<void> {
     const startTime = Date.now();
     console.log('=== AllMusic Blog News Scraper ===');
-    console.log(`Checking ${MAX_PAGES === 0 ? 'all' : MAX_PAGES} blog page(s)\n`);
+    console.log(`Checking ${MAX_PAGES} blog page(s)\n`);
 
     await logWorkflowRun('running');
 

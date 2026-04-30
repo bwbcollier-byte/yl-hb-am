@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       max_pages:
-        description: "Blog listing pages to check (0 = all)"
+        description: "Blog listing pages to check (0 = all, default 20)"
         required: false
-        default: "0"
+        default: "20"
         type: string
 
 jobs:
@@ -46,7 +46,7 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-          MAX_PAGES: ${{ github.event.inputs.max_pages || '0' }}
+          MAX_PAGES: ${{ github.event.inputs.max_pages || '20' }}
           WORKFLOW_ID: ${{ vars.WORKFLOW_ID_ALLMUSIC_BLOG_SCRAPER }}
         run: npx ts-node --transpile-only src/allmusic-blog-news-scraper.ts
 
