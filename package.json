@@ -6,7 +6,7 @@
     "allmusic-news-scraper": "tsx src/allmusic-news-scraper.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.39.0",
+    "@supabase/supabase-js": "^2.105.3",
     "cheerio": "^1.2.0",
     "dotenv": "^16.3.1"
   },
