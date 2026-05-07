@@ -23,10 +23,11 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - name: Download actionlint
+        id: get_actionlint
+        run: bash <(curl -sSf https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.4
       - name: Run actionlint
-        uses: docker://rhysd/actionlint:1.7.4
-        with:
-          args: -color
+        run: ${{ steps.get_actionlint.outputs.executable }} -color
 
   shellcheck:
     name: Lint shell scripts
@@ -34,7 +35,6 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Run shellcheck
-        uses: ludeeus/action-shellcheck@2.0.0
+      - uses: ludeeus/action-shellcheck@master
         with:
           severity: warning

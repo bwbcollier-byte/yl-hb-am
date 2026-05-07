@@ -30,7 +30,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
-          echo "START_TIME=$(date +%s)" >> $GITHUB_ENV
+          echo "START_TIME=$(date +%s)" >> "$GITHUB_ENV"
           curl -s -X POST "$SUPABASE_URL/rest/v1/rpc/log_workflow_run" \
             -H "apikey: $SUPABASE_SERVICE_KEY" \
             -H "Authorization: Bearer $SUPABASE_SERVICE_KEY" \
@@ -63,7 +63,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: |
-          DURATION=$(( $(date +%s) - $START_TIME ))
+          DURATION=$(( $(date +%s) - START_TIME ))
           STATUS="${{ job.status }}"
           PAYLOAD=$(printf '{"p_workflow_id": ${{ vars.WORKFLOW_ID_ALLMUSIC_BLOG_SCRAPER }}, "p_status": "%s", "p_duration_secs": %s, "p_run_id": "${{ github.run_id }}"}' "$STATUS" "$DURATION")
           curl -s -X POST "$SUPABASE_URL/rest/v1/rpc/log_workflow_run" \
