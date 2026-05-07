@@ -61,7 +61,7 @@ jobs:
           PROFILE_LIMIT: ${{ github.event.inputs.profile_limit || '0' }}
           CONCURRENCY: ${{ github.event.inputs.concurrency || '5' }}
           WORKFLOW_ID: ${{ vars.WORKFLOW_ID_ALLMUSIC_NEWS_SCRAPER }}
-        run: npx ts-node --transpile-only src/allmusic-news-scraper.ts
+        run: npx tsx src/allmusic-news-scraper.ts
 
       - name: Notify Supabase — result
         if: always()
